@@ -22,21 +22,19 @@ creds = Credentials.from_service_account_info(
 
 client = gspread.authorize(creds)
 
-# Nama Google Sheet
-SHEET_NAME = "buku_tamu_db"
+# 🔥 GANTI DENGAN GOOGLE SHEET ID KAMU
+SHEET_ID = "1hZwOnl2qnRHgIXvDDCNJho7ux4JafkRF_awYQPY6rUs"
 
 try:
-    sheet = client.open(SHEET_NAME).sheet1
-except:
-    st.error("❌ Google Sheet tidak ditemukan.\n\nPastikan:\n1. Nama sheet = buku_tamu_db\n2. Service account sudah diberi akses editor.")
+    sheet = client.open_by_key(SHEET_ID).sheet1
+except Exception as e:
+    st.error(f"❌ Google Sheet tidak ditemukan.\n\nError: {e}\n\nPastikan:\n1. Sheet sudah dibuat\n2. Service account sudah diberi akses editor.")
     st.stop()
-
 
 # ==========================
 # 2. Sidebar Menu
 # ==========================
 menu = st.sidebar.radio("Menu", ["Isi Buku Tamu", "Lihat Data Tamu"])
-
 
 # ==========================
 # 3. FORM INPUT BUKU TAMU
@@ -61,7 +59,6 @@ if menu == "Isi Buku Tamu":
             sheet.append_row([nama, email, instansi, pesan, str(datetime.now())])
             st.success("✅ Terima kasih! Data kamu sudah tersimpan.")
 
-
 # ==========================
 # 4. HALAMAN ADMIN – MELIHAT DATA
 # ==========================
@@ -79,3 +76,5 @@ elif menu == "Lihat Data Tamu":
 
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("⬇ Download CSV", csv, "data_buku_tamu.csv", "text/csv")
+
+
