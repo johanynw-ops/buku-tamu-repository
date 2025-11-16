@@ -1,47 +1,81 @@
 import streamlit as st
-import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
 from datetime import datetime
+import pandas as pd
 
-# --- Judul Aplikasi ---
-st.title("📖 Buku Tamu Digital")
-st.write("Selamat datang! Silakan isi buku tamu di bawah ini.")
+st.set_page_config(page_title="Buku Tamu Digital", layout="centered")
 
-# --- Inisialisasi DataFrame untuk menyimpan data tamu ---
-if "buku_tamu" not in st.session_state:
-    st.session_state.buku_tamu = pd.DataFrame(columns=["Waktu", "Nama", "Email", "Pesan"])
+# ==========================
+# 1. Google Sheets Connector
+# ==========================
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-# --- Form Input Buku Tamu ---
-with st.form("form_buku_tamu"):
-    nama = st.text_input("Nama Lengkap")
-    email = st.text_input("Email")
-    pesan = st.text_area("Pesan")
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope
+)
 
-    submitted = st.form_submit_button("Kirim")
+client = gspread.authorize(creds)
 
-    if submitted:
-        if nama and email and pesan:
-            waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            new_data = pd.DataFrame([[waktu, nama, email, pesan]], columns=["Waktu", "Nama", "Email", "Pesan"])
-            st.session_state.buku_tamu = pd.concat([st.session_state.buku_tamu, new_data], ignore_index=True)
-            st.success("✅ Terima kasih! Data Anda telah disimpan.")
+# Nama Google Sheet
+SHEET_NAME = "buku_tamu_db"
+
+try:
+    sheet = client.open(SHEET_NAME).sheet1
+except:
+    st.error("❌ Google Sheet tidak ditemukan.\n\nPastikan:\n1. Nama sheet = buku_tamu_db\n2. Service account sudah diberi akses editor.")
+    st.stop()
+
+
+# ==========================
+# 2. Sidebar Menu
+# ==========================
+menu = st.sidebar.radio("Menu", ["Isi Buku Tamu", "Lihat Data Tamu"])
+
+
+# ==========================
+# 3. FORM INPUT BUKU TAMU
+# ==========================
+if menu == "Isi Buku Tamu":
+
+    st.title("📘 Buku Tamu Digital")
+    st.write("Silakan isi data berikut:")
+
+    with st.form("form_bukutamu"):
+        nama = st.text_input("Nama")
+        email = st.text_input("Email")
+        instansi = st.text_input("Instansi / Perusahaan")
+        pesan = st.text_area("Pesan / Keperluan")
+
+        submit = st.form_submit_button("Kirim")
+
+    if submit:
+        if not nama:
+            st.warning("⚠ Nama wajib diisi!")
         else:
-            st.warning("⚠️ Harap isi semua kolom terlebih dahulu.")
+            sheet.append_row([nama, email, instansi, pesan, str(datetime.now())])
+            st.success("✅ Terima kasih! Data kamu sudah tersimpan.")
 
-# --- Tampilkan Data Buku Tamu ---
-st.markdown("---")
-st.subheader("📋 Daftar Buku Tamu")
 
-if not st.session_state.buku_tamu.empty:
-    st.dataframe(st.session_state.buku_tamu, use_container_width=True)
-else:
-    st.info("Belum ada data tamu yang masuk.")
+# ==========================
+# 4. HALAMAN ADMIN – MELIHAT DATA
+# ==========================
+elif menu == "Lihat Data Tamu":
 
-# --- Opsi Simpan ke File CSV ---
-if not st.session_state.buku_tamu.empty:
-    csv = st.session_state.buku_tamu.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="💾 Download Data Buku Tamu (CSV)",
-        data=csv,
-        file_name='buku_tamu.csv',
-        mime='text/csv',
-    )
+    st.title("📄 Data Tamu Masuk")
+
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+
+    if len(df) == 0:
+        st.info("Belum ada data tamu.")
+    else:
+        st.dataframe(df)
+
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇ Download CSV", csv, "data_buku_tamu.csv", "text/csv")
